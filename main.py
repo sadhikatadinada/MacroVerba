@@ -12,16 +12,22 @@ def setup_environment():
 if __name__ == "__main__":
     setup_environment()
     
-    soup = fetch_rbi_policy_page()
+    metadata_path = PROCESSED_DATA_DIR / "rbi_metadata.json"
     
-    rbi_html_path = RAW_DATA_DIR / "rbi" / "latest_press_releases.html"
-    
-    if rbi_html_path.exists():
-        extracted_data = parse_rbi_press_releases(rbi_html_path)
-        print(f"\nSuccessfully extracted {len(extracted_data)} press releases!")
-        
-        output_file = PROCESSED_DATA_DIR / "rbi_metadata.json"
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(extracted_data, f, indent=4)
+    if metadata_path.exists():
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            releases = json.load(f)
             
-        print(f"Saved metadata to {output_file}")
+        print(f"Loaded {len(releases)} press releases from JSON.")
+        
+        from src.sources.rbi.scraper import fetch_release_html
+        from src.sources.rbi.parser import extract_release_text
+        
+        for release in releases[:3]:
+            html = fetch_release_html(release["link"])
+            if html:
+                print(f"Successfully downloaded: {release['title']}")
+                
+                text = extract_release_text(html)
+                snippet = text[:200].replace("\n", " ")
+                print(f"Preview: {snippet}...\n")

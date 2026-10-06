@@ -23,3 +23,13 @@ def parse_rbi_press_releases(file_path: Path) -> list[dict]:
             })
             
     return releases
+
+def extract_release_text(html: str) -> str:
+    """Extracts the main paragraph text from an RBI press release HTML."""
+    soup = BeautifulSoup(html, "html.parser")
+    
+    paragraphs = soup.find_all("p")
+    
+    text_blocks = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
+    
+    return "\n\n".join(text_blocks)
