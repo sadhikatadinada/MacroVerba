@@ -40,7 +40,7 @@ def fetch_release_html(url: str) -> str | None:
     
     print(f"Politely fetching {url}...")
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=30)
         
         if response.status_code == 200:
             time.sleep(2)

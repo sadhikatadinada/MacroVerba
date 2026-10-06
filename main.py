@@ -1,13 +1,15 @@
 import json
 from config import RAW_DATA_DIR, PROCESSED_DATA_DIR
 from src.core.filesystem import ensure_directories
-from src.sources.rbi.scraper import fetch_rbi_policy_page
-from src.sources.rbi.parser import parse_rbi_press_releases
+from src.core.database import init_db
+from src.sources.rbi.scraper import fetch_rbi_policy_page, fetch_release_html
+from src.sources.rbi.parser import parse_rbi_press_releases, extract_release_text
 
 def setup_environment():
     print("Setting up MacroVerba directories...")
     ensure_directories([RAW_DATA_DIR, PROCESSED_DATA_DIR])
-    print("Directories ready.\n")
+    init_db()
+    print("Directories and Database ready.\n")
 
 if __name__ == "__main__":
     setup_environment()
@@ -22,12 +24,25 @@ if __name__ == "__main__":
         
         from src.sources.rbi.scraper import fetch_release_html
         from src.sources.rbi.parser import extract_release_text
+        from src.core.database import get_db_connection
         
-        for release in releases[:3]:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        for release in releases:
             html = fetch_release_html(release["link"])
             if html:
-                print(f"Successfully downloaded: {release['title']}")
-                
                 text = extract_release_text(html)
-                snippet = text[:200].replace("\n", " ")
-                print(f"Preview: {snippet}...\n")
+                
+                try:
+                    cursor.execute('''
+                        INSERT INTO documents (institution, title, url, content)
+                        VALUES (?, ?, ?, ?)
+                    ''', ("RBI", release["title"], release["link"], text))
+                    conn.commit()
+                    print(f"Successfully saved to database: {release['title']}")
+                except Exception as e:
+                    print(f"Skipped (already exists or error): {release['title']}")
+                    
+        conn.close()
+        print("\nDatabase operations complete.")
