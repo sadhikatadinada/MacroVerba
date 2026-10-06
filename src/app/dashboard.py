@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-# Add project root to path
 project_root = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.append(project_root)
 
@@ -38,16 +37,23 @@ else:
     st.divider()
 
     st.subheader("Document Explorer")
-    filter_col1, filter_col2 = st.columns([1, 2])
+    filter_col1, filter_col2, filter_col3 = st.columns([1, 1, 2])
 
     with filter_col1:
+        institution_options = ["All Institutions"] + sorted(df["institution"].dropna().unique().tolist())
+        selected_institution = st.selectbox("Filter by Institution:", institution_options)
+
+    with filter_col2:
         topic_options = ["All Topics"] + sorted(df["topic"].dropna().unique().tolist())
         selected_topic = st.selectbox("Filter by Economic Topic:", topic_options)
 
-    with filter_col2:
-        search_query = st.text_input("Search titles by keyword (e.g., 'Auction', 'Repo', 'Bulletin'):")
+    with filter_col3:
+        search_query = st.text_input("Search titles by keyword (e.g., 'FOMC', 'Auction', 'Repo'):")
 
     filtered_df = df.copy()
+    if selected_institution != "All Institutions":
+        filtered_df = filtered_df[filtered_df["institution"] == selected_institution]
+
     if selected_topic != "All Topics":
         filtered_df = filtered_df[filtered_df["topic"] == selected_topic]
 
