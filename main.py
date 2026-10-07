@@ -12,6 +12,10 @@ from src.sources.rbi.parser import extract_release_text
 from src.sources.fed.scraper import fetch_fed_press_releases, fetch_fed_release_html
 from src.sources.fed.parser import parse_fed_press_releases, extract_fed_release_text
 
+# BoE Imports
+from src.sources.boe.scraper import fetch_boe_press_releases, fetch_boe_release_html
+from src.sources.boe.parser import parse_boe_press_releases, extract_boe_release_text
+
 def setup_environment():
     """Initialize the base project directories."""
     ensure_directories([RAW_DATA_DIR, PROCESSED_DATA_DIR])
@@ -75,6 +79,37 @@ def update_fed():
                     
         conn.close()
         print("Federal Reserve pipeline complete.")
+        
+def update_boe():
+    """Runs the data extraction pipeline for the Bank of England."""
+    print("--- Running Bank of England Pipeline ---")
+    soup = fetch_boe_press_releases()
+    
+    boe_html_path = RAW_DATA_DIR / "boe" / "latest_boe_releases.html"
+    
+    if boe_html_path.exists():
+        releases = parse_boe_press_releases(boe_html_path)
+        print(f"\nSuccessfully extracted {len(releases)} press releases. Updating database...")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        for release in releases:
+            html = fetch_boe_release_html(release["link"])
+            if html:
+                text = extract_boe_release_text(html)
+                try:
+                    cursor.execute('''
+                        INSERT INTO documents (institution, title, url, content)
+                        VALUES (?, ?, ?, ?)
+                    ''', ("BoE", release["title"], release["link"], text))
+                    conn.commit()
+                    print(f"Successfully saved to database: {release['title']}")
+                except Exception:
+                    print(f"Skipped (already exists): {release['title']}")
+                    
+        conn.close()
+        print("Bank of England pipeline complete.")
 
 if __name__ == "__main__":
     setup_environment()
@@ -86,7 +121,9 @@ if __name__ == "__main__":
             update_rbi()
         elif target_bank == "fed":
             update_fed()
+        elif target_bank == "boe":
+            update_boe()
         else:
-            print(f"Unknown institution: {target_bank}. Please use 'rbi' or 'fed'.")
+            print(f"Unknown institution: {target_bank}. Please use 'rbi', 'fed', or 'boe'.")
     else:
         print("Please specify an institution. Example: python3 main.py fed")
