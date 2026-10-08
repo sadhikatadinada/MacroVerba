@@ -1,73 +1,68 @@
-import sys
+import streamlit as st
+import pandas as pd
+import sqlite3
 from pathlib import Path
 
-project_root = str(Path(__file__).resolve().parent.parent.parent)
-sys.path.append(project_root)
+# Paths based on your config architecture
+DB_PATH = Path('data/processed/macroverba.db')
+STANCE_PATH = Path('data/processed/policy_stance_index.csv')
 
-import streamlit as st
-from src.processing.nlp import get_clustered_documents
+st.set_page_config(page_title="MacroVerba", layout="wide")
+st.title("MacroVerba: Comparative Monetary Policy")
 
-st.set_page_config(page_title="MacroVerba", page_icon="🏛️", layout="wide")
-st.title("MacroVerba: Central Bank Intelligence")
-st.markdown("An automated pipeline for standardizing and analyzing macroeconomic communication.")
-
+# Load Data
 @st.cache_data
 def load_data():
-    return get_clustered_documents()
 
-df = load_data()
+    conn = sqlite3.connect(DB_PATH)
+    db_df = pd.read_sql_query("SELECT institution, title, url FROM documents", conn)
+    conn.close()
+    
+    if STANCE_PATH.exists():
+        stance_df = pd.read_csv(STANCE_PATH)
+    else:
+        stance_df = pd.DataFrame()
+        
+    return db_df, stance_df
 
-if df.empty:
-    st.warning("No documents found. Run the scraper and database pipeline first.")
+db_df, stance_df = load_data()
+
+# Sidebar Filters
+st.sidebar.header("Filter by Institution")
+if not db_df.empty:
+    banks = db_df['institution'].unique().tolist()
+    selected_banks = st.sidebar.multiselect("Select Central Banks", banks, default=banks)
+    
+    filtered_db = db_df[db_df['institution'].isin(selected_banks)]
+    
+    st.sidebar.metric("Total Documents", len(filtered_db))
 else:
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Documents", len(df))
-    with col2:
-        st.metric("Institutions Tracked", df["institution"].nunique())
-    with col3:
-        st.metric("Identified Topics", df["topic"].nunique())
+    st.warning("Database is empty. Run the scrapers first.")
+    selected_banks = []
 
+# Policy Stance Visualization
+if not stance_df.empty and selected_banks:
+    st.subheader("Hawkish vs. Dovish Policy Stance (2021-2023)")
+    st.markdown("*> 0 indicates Hawkish (Tightening), < 0 indicates Dovish (Accommodative)*")
+    
+    filtered_stance = stance_df[stance_df['Institution'].isin(selected_banks)]
+    
+    if not filtered_stance.empty:
+        chart_data = filtered_stance.pivot_table(
+            index='Title', 
+            columns='Institution', 
+            values='Net_Stance_Score'
+        )
+        st.bar_chart(chart_data)
+        
+        with st.expander("View Raw Stance Index Data"):
+            st.dataframe(
+                filtered_stance[['Institution', 'Title', 'Hawkish_Hits', 'Dovish_Hits', 'Net_Stance_Score']], 
+                use_container_width=True
+            )
+
+# Raw Document Database
+if not db_df.empty and selected_banks:
     st.divider()
-
-    st.subheader("Distribution of Central Bank Communication by Topic")
-    topic_counts = df["topic"].value_counts()
-    st.bar_chart(topic_counts)
-
-    st.divider()
-
-    st.subheader("Document Explorer")
-    filter_col1, filter_col2, filter_col3 = st.columns([1, 1, 2])
-
-    with filter_col1:
-        institution_options = ["All Institutions"] + sorted(df["institution"].dropna().unique().tolist())
-        selected_institution = st.selectbox("Filter by Institution:", institution_options)
-
-    with filter_col2:
-        topic_options = ["All Topics"] + sorted(df["topic"].dropna().unique().tolist())
-        selected_topic = st.selectbox("Filter by Economic Topic:", topic_options)
-
-    with filter_col3:
-        search_query = st.text_input("Search titles by keyword (e.g., 'FOMC', 'Auction', 'Repo'):")
-
-    filtered_df = df.copy()
-    if selected_institution != "All Institutions":
-        filtered_df = filtered_df[filtered_df["institution"] == selected_institution]
-
-    if selected_topic != "All Topics":
-        filtered_df = filtered_df[filtered_df["topic"] == selected_topic]
-
-    if search_query:
-        filtered_df = filtered_df[filtered_df["title"].str.contains(search_query, case=False, na=False)]
-
-    display_cols = ["institution", "title", "topic", "url", "scraped_at"]
-    st.dataframe(
-        filtered_df[display_cols],
-        column_config={
-            "url": st.column_config.LinkColumn("Document Link"),
-            "topic": st.column_config.TextColumn("Economic Classification"),
-            "title": st.column_config.TextColumn("Document Title", width="large")
-        },
-        hide_index=True,
-        use_container_width=True
-    )
+    st.subheader("Document Database Explorer")
+    st.dataframe(filtered_db, use_container_width=True)
