@@ -108,3 +108,46 @@ def get_communication_narrative_table() -> pd.DataFrame:
         }
     ]
     return pd.DataFrame(data)
+
+def plot_inflation_shock(macro_df: pd.DataFrame):
+    """Generates a line chart of headline CPI across the three economies."""
+    fig = px.line(
+        macro_df, 
+        x='Date', 
+        y='Inflation_YoY', 
+        color='Country',
+        title='1. The Common Shock: Headline CPI Inflation (2020–2024)',
+        labels={'Inflation_YoY': 'Headline CPI (YoY %)', 'Country': 'Economy'}
+    )
+
+    fig.add_hline(y=2, line_dash="dash", line_color="gray", annotation_text="Fed/BoE 2% Target")
+    fig.add_hline(y=4, line_dash="dash", line_color="gray", annotation_text="RBI 4% Target")
+    fig.update_layout(title_font=dict(size=14))
+    return fig
+
+def plot_nominal_rates(macro_df: pd.DataFrame):
+    """Generates a line chart of nominal policy rates."""
+    fig = px.line(
+        macro_df, 
+        x='Date', 
+        y='Policy_Rate', 
+        color='Institution',
+        title='2. Divergent Responses: Nominal Policy Rates',
+        labels={'Policy_Rate': 'Nominal Policy Rate (%)', 'Institution': 'Central Bank'}
+    )
+    fig.update_layout(title_font=dict(size=14))
+    return fig
+
+def plot_real_rates(macro_df: pd.DataFrame):
+    """Generates a line chart of ex-post real policy rates."""
+    fig = px.line(
+        macro_df, 
+        x='Date', 
+        y='Real_Rate', 
+        color='Institution',
+        title='3. The Real Policy Stance: Ex-Post Real Rates',
+        labels={'Real_Rate': 'Real Rate (Nominal - Inflation %)', 'Institution': 'Central Bank'}
+    )
+    fig.add_hline(y=0, line_dash="solid", line_color="black", annotation_text="Zero Real Rate")
+    fig.update_layout(title_font=dict(size=14))
+    return fig
